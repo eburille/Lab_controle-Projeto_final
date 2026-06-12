@@ -77,11 +77,11 @@ class DashControl(QWidget):
         
         presets_row = QHBoxLayout()
         
-        self.btn_preset_628 = QPushButton("Posição: 6.28 rad (360°)")
+        self.btn_preset_628 = QPushButton("Posição: 360°")
         self.btn_preset_628.setStyleSheet("background-color: #28A745; font-weight: bold;") # Verde
         self.btn_preset_628.clicked.connect(lambda: self.aplicar_preset_posicao(6.28))
         
-        self.btn_preset_0 = QPushButton("Posição: 0.00 rad (Reset)")
+        self.btn_preset_0 = QPushButton("Posição: 0.00°")
         self.btn_preset_0.setStyleSheet("background-color: #DC3545; font-weight: bold;")  # Vermelho
         self.btn_preset_0.clicked.connect(lambda: self.aplicar_preset_posicao(0.0))
         
@@ -92,7 +92,7 @@ class DashControl(QWidget):
 
         # --- SEÇÃO DE COMANDO (INPUTS MANUAIS) ---
         cmd_layout = QVBoxLayout()
-        cmd_layout.addWidget(QLabel("AJUSTAR REFERÊNCIA DO SISTEMA MANUALLY"))
+        cmd_layout.addWidget(QLabel("AJUSTAR REFERÊNCIA DO SISTEMA MANUALMENTE"))
         
         input_row = QHBoxLayout()
         self.input_pos = QLineEdit()
