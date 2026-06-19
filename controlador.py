@@ -10,7 +10,7 @@ import os
 
 # 10250 pulsos por volta   ->  1631.33 pulsos por rad
 PULSES_PER_RAD            = 21000 / 6.28 #1631.33
-CONTROL_CYCLE_TIME_NS     = 0.0001 * 10**6
+CONTROL_CYCLE_TIME_NS     = 0.05 * 10**6
 INTERFACE_CYCLE_TIME_NS   = 500 * 10**6
 SPEED_CONTROL             = 0
 POSITION_CONTROL          = 1
@@ -28,6 +28,8 @@ new_ind_encoder = 0
 ind_encoder = 0
 next_ind_encoder = 0
 previous_ind_encoder = 0
+next2_ind_encoder = 0
+previous2_ind_encoder = 0
 
 nova_comb_encoder = 0
 encoder_1_new = 0
@@ -66,12 +68,16 @@ def le_encoders():
     new_ind_encoder = ENCODER_SEQUENCY.index(nova_comb_encoder)
 
 def define_posicao():
-    global contador_pulsos, encoder_1_new, encoder_1_old, next_ind_encoder, previous_ind_encoder, ind_encoder
+    global contador_pulsos, encoder_1_new, encoder_1_old, next_ind_encoder, previous_ind_encoder, ind_encoder, next2_ind_encoder, previous2_ind_encoder
 
     if new_ind_encoder == next_ind_encoder:
         delta_position = 1 / PULSES_PER_RAD
     elif new_ind_encoder == previous_ind_encoder:
         delta_position = -1 / PULSES_PER_RAD
+    elif new_ind_encoder == next2_ind_encoder:
+        delta_position = 2 / PULSES_PER_RAD
+    elif new_ind_encoder == previous2_ind_encoder:
+        delta_position = -2 / PULSES_PER_RAD
     elif new_ind_encoder == ind_encoder:
         delta_position = 0
     else:
@@ -85,6 +91,8 @@ def define_posicao():
     ind_encoder = new_ind_encoder
     next_ind_encoder = (new_ind_encoder + 1) & 3
     previous_ind_encoder = (new_ind_encoder - 1) & 3
+    next2_ind_encoder = (next_ind_encoder + 1) & 3
+    previous2_ind_encoder = (previous_ind_encoder - 1) & 3
 
 
 def define_velocidade():
@@ -102,15 +110,18 @@ def controller():
     erro_velocidade = velocidade_ref - speed_array[0]
     erro_posicao    = posicao_ref - position_array[0]
 
-    if erro_posicao > MAX_ERROR * 5:
+    if erro_posicao > MAX_ERROR * 15:
         direction               = CLOCKWISE
         motor_clockwise.value     = 1.0
         motor_counterclockwise.value = 0.0
-    elif erro_posicao < -MAX_ERROR * 5:
+        # print("horario")
+    elif erro_posicao < -MAX_ERROR * 15:
         direction               = COUNTER_CLOCKWISE
         motor_counterclockwise.value = 1.0
         motor_clockwise.value     = 0.0
+        # print("antihorario")
     else:
+        # print("parado")
         motor_counterclockwise.value = 0.0
         motor_clockwise.value     = 0.0
 
@@ -132,8 +143,6 @@ def run(pipe: Connection):
     encoder_1 = DigitalInputDevice(23, pull_up=True)
     encoder_2 = DigitalInputDevice(24, pull_up=True)
 
-
-
     le_encoders()
 
     position_array.appendleft(0)
@@ -152,7 +161,7 @@ def run(pipe: Connection):
             print("Referencia recebida - ", referencia)
             posicao_ref = referencia["ref_pos"]
 
-        if True: #delta_time_control >= CONTROL_CYCLE_TIME_NS:
+        if delta_time_control >= CONTROL_CYCLE_TIME_NS:
             # CONTROL_CYCLE_TIME_NS = delta_time_control
             # print(delta_time_control)
             le_encoders()
