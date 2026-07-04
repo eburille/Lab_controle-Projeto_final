@@ -6,6 +6,9 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QFont
 
+import csv
+import time
+
 # Tenta importar o seu módulo de controle
 try:
     from controlador import run
@@ -20,6 +23,10 @@ class DashControl(QWidget):
         
         # Estado inicial do controle: 0 = Velocidade, 1 = Posição
         self.modo_controle = 0 
+        
+        # --- ESTRUTURAS DE DADOS PARA O HISTÓRICO ---
+        self.historico_telemetria = []  # Lista que guardará tuplas (tempo, posicao)
+        self.tempo_inicial = time.time() # Tempo zero para contagem relativa
         
         self.initUI()
         
@@ -71,18 +78,18 @@ class DashControl(QWidget):
         telemetria_layout.addWidget(self.frame_vel)
         main_layout.addLayout(telemetria_layout)
 
-        # --- SEÇÃO DE PRESETS / REFERÊNCIAS PREDEFINIDAS (NOVO) ---
+        # --- SEÇÃO DE PRESETS / REFERÊNCIAS PREDEFINIDAS ---
         presets_layout = QVBoxLayout()
         presets_layout.addWidget(QLabel("REFERÊNCIAS PREDEFINIDAS (POSIÇÃO)"))
         
         presets_row = QHBoxLayout()
         
         self.btn_preset_628 = QPushButton("Posição: 360°")
-        self.btn_preset_628.setStyleSheet("background-color: #28A745; font-weight: bold;") # Verde
+        self.btn_preset_628.setStyleSheet("background-color: #28A745; font-weight: bold;") 
         self.btn_preset_628.clicked.connect(lambda: self.aplicar_preset_posicao(6.28))
         
         self.btn_preset_0 = QPushButton("Posição: 0.00°")
-        self.btn_preset_0.setStyleSheet("background-color: #DC3545; font-weight: bold;")  # Vermelho
+        self.btn_preset_0.setStyleSheet("background-color: #DC3545; font-weight: bold;")  
         self.btn_preset_0.clicked.connect(lambda: self.aplicar_preset_posicao(0.0))
         
         presets_row.addWidget(self.btn_preset_628)
@@ -111,19 +118,16 @@ class DashControl(QWidget):
 
         self.setLayout(main_layout)
         self.setWindowTitle('Dashboard de Controle Motor')
-        self.resize(550, 520) # Redimensionado ligeiramente para comportar os novos botões
+        self.resize(550, 520)
 
     def aplicar_preset_posicao(self, valor_pos: float):
-        """ Preenche o campo de texto de posição com o preset escolhido e envia imediatamente """
         self.input_pos.setText(str(valor_pos))
-        # Força o modo de controle para Posição (1) se o usuário usar o preset de posição
         if self.modo_controle == 0:
             self.alternar_modo_controle()
         else:
             self.enviar_comando()
 
     def alternar_modo_controle(self):
-        """ Alterna a variável de estado e atualiza o visual do botão """
         if self.modo_controle == 0:
             self.modo_controle = 1
             self.btn_modo.setText("MODO: CONTROLE DE POSIÇÃO")
@@ -151,8 +155,37 @@ class DashControl(QWidget):
         while self.pipe.poll():
             dados = self.pipe.recv()
             if "posicao" in dados:
-                self.val_pos.setText(f"{dados['posicao']:.2f}")
+                posicao_atual = dados["posicao"]
+                sinal_controle = dados["controle"]
+                self.val_pos.setText(f"{posicao_atual:.2f}")
                 self.val_vel.setText(f"{(dados['velocidade']*1000):.2f}")
+                
+                # Salva o tempo decorrido relativo e a posição no histórico
+                tempo_decorrido = time.time() - self.tempo_inicial
+                self.historico_telemetria.append((tempo_decorrido, posicao_atual, sinal_controle))
+
+    # --- MÉTODO PARA CAPTURAR O FECHAMENTO DA JANELA ---
+    def closeEvent(self, event):
+        """ Função nativa do PyQt disparada automaticamente ao fechar o programa """
+        print(f"[GUI] Fechando janela... Salvando {len(self.historico_telemetria)} registros no histórico.")
+        
+        if self.historico_telemetria:
+            nome_arquivo = f"historico_posicao_{int(time.time())}.csv"
+            try:
+                with open(nome_arquivo, mode='w', newline='') as file:
+                    writer = csv.writer(file)
+                    # Escreve o cabeçalho estipulado
+                    writer.writerow(["Tempo (s)", "Posicao (rad)", "controle"])
+                    # Escreve todas as linhas acumuladas no histórico
+                    writer.writerows(self.historico_telemetria)
+                print(f"[GUI] Dados salvos com sucesso em: {nome_arquivo}")
+            except Exception as e:
+                print(f"[GUI] Erro ao salvar o arquivo CSV: {e}")
+        else:
+            print("[GUI] Nenhum dado de telemetria foi registrado para salvar.")
+            
+        # Aceita o evento e fecha o software normalmente
+        event.accept()
 
 def rodar_gui(pipe_conn):
     app = QApplication(sys.argv)
@@ -162,13 +195,10 @@ def rodar_gui(pipe_conn):
 
 # --- ORQUESTRAÇÃO DE INICIALIZAÇÃO ---
 if __name__ == '__main__':
-    # Cria o Pipe bidirecional seguro para troca de dados em memória
     conn_gui, conn_control = mp.Pipe(duplex=True)
     
-    # Cria e inicializa o processo secundário para a matemática do controle
     p_control = mp.Process(target=run, args=(conn_control,))
     p_control.daemon = True 
     p_control.start()
 
-    # Inicia a GUI na thread principal do sistema gráfico local
     rodar_gui(conn_gui)

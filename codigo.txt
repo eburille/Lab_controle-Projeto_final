@@ -1,0 +1,21 @@
+### main.py
+
+Responsável por iniciar a thread de controle e pela interface grafica desenvolvida com QT.
+
+A interface, através de um Pipe, coloca os comandos dados pelo usuário em uma fila de comandos para o controlador.
+
+Ao mesmo tempo, ela recebe, através do mesmo Pipe, informações sobre posição e velocidade do motor e disponibiliza-as para o usuário
+
+
+
+### controlador.py
+
+Responsável por fechar a malha do sistema, lendo a posição do encoder e controlando o PWM do GPIO.
+
+Recebe a referencia de posição da interface através do Pipe
+
+Fica em loop na rotina de controle e a cada 0.5 segundos, envia para a interface, atravpes do Pipe, informações da telemteria: posicao e velocidade.
+
+A velocidade do motor é calculada através de um filtro passa-baixas implementado na função  `define_velocidade()`
+
+A função `controller()` implementa a lei de controle do sistema

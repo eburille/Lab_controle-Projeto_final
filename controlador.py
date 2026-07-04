@@ -42,6 +42,7 @@ velocidade_ref    = 0
 contador_pulsos = 0
 
 direction = CLOCKWISE
+controle = 0
 
 ### Timers
 control_timer = time_ns()
@@ -72,11 +73,15 @@ def define_posicao():
 
     if new_ind_encoder == next_ind_encoder:
         delta_position = 1 / PULSES_PER_RAD
+        # print("avança 1")
     elif new_ind_encoder == previous_ind_encoder:
         delta_position = -1 / PULSES_PER_RAD
+        # print("Volta 1")
     elif new_ind_encoder == next2_ind_encoder:
+        # print("avança 2")
         delta_position = 2 / PULSES_PER_RAD
     elif new_ind_encoder == previous2_ind_encoder:
+        # print("Volta 2")
         delta_position = -2 / PULSES_PER_RAD
     elif new_ind_encoder == ind_encoder:
         delta_position = 0
@@ -97,7 +102,7 @@ def define_posicao():
 
 def define_velocidade():
     p = 1000  ## polo
-    T = delta_time_control * 10**(-9)
+    T = CONTROL_CYCLE_TIME_NS * 10**(-9)
     a0 = (p*T - 2) / (2 + p*T)
     b0 = 2 / (2 + p*T)
     b1 = - 2 / (2 + p*T)
@@ -106,31 +111,40 @@ def define_velocidade():
     speed_array.appendleft(velocidade)
 
 def controller():
-    global motor_counterclockwise, motor_clockwise, direction
+    global motor_counterclockwise, motor_clockwise, direction, controle
     erro_velocidade = velocidade_ref - speed_array[0]
     erro_posicao    = posicao_ref - position_array[0]
 
-    if erro_posicao > MAX_ERROR * 15:
+    K = 250
+
+    if erro_posicao > MAX_ERROR:
         direction               = CLOCKWISE
-        motor_clockwise.value     = 1.0
+
+        sinal = abs(K * erro_posicao)
+        controle = min(sinal, 0.9)
+        motor_clockwise.value     = controle
         motor_counterclockwise.value = 0.0
         # print("horario")
-    elif erro_posicao < -MAX_ERROR * 15:
+    elif erro_posicao < -MAX_ERROR:
         direction               = COUNTER_CLOCKWISE
-        motor_counterclockwise.value = 1.0
+        
+        sinal = abs(K * erro_posicao)
+        controle = min(sinal, 0.9)
+        motor_counterclockwise.value = controle
         motor_clockwise.value     = 0.0
         # print("antihorario")
     else:
         # print("parado")
         motor_counterclockwise.value = 0.0
         motor_clockwise.value     = 0.0
+        controle = 0
 
 def motor_simulation():
     pass
 
 
 def run(pipe: Connection):
-    global control_timer, interface_timer, posicao_ref, encoder_1, encoder_2, motor_clockwise, motor_counterclockwise, encoder_1, encoder_2, CONTROL_CYCLE_TIME_NS
+    global control_timer, interface_timer, posicao_ref, encoder_1, encoder_2, motor_clockwise, motor_counterclockwise, encoder_1, encoder_2, CONTROL_CYCLE_TIME_NS, controle
 
     motor_clockwise = PWMOutputDevice(12, frequency=1000)
     motor_counterclockwise  = PWMOutputDevice(13, frequency=1000)
@@ -142,6 +156,8 @@ def run(pipe: Connection):
     
     encoder_1 = DigitalInputDevice(23, pull_up=True)
     encoder_2 = DigitalInputDevice(24, pull_up=True)
+
+
 
     le_encoders()
 
@@ -161,7 +177,7 @@ def run(pipe: Connection):
             print("Referencia recebida - ", referencia)
             posicao_ref = referencia["ref_pos"]
 
-        if delta_time_control >= CONTROL_CYCLE_TIME_NS:
+        if True: #delta_time_control >= CONTROL_CYCLE_TIME_NS:
             # CONTROL_CYCLE_TIME_NS = delta_time_control
             # print(delta_time_control)
             le_encoders()
@@ -175,7 +191,7 @@ def run(pipe: Connection):
             delta_time_control = 0
         
         if  delta_time_interface >= INTERFACE_CYCLE_TIME_NS:            
-            pipe.send({'posicao': position_array[0], 'velocidade': speed_array[0] })
+            pipe.send({'posicao': position_array[0], 'velocidade': speed_array[0], 'controle': controle })
 
 
             interface_timer = time_ns()
