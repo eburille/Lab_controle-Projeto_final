@@ -97,7 +97,7 @@ def define_posicao():
 
 def define_velocidade():
     p = 1000  ## polo
-    T = CONTROL_CYCLE_TIME_NS * 10**(-9)
+    T = delta_time_control * 10**(-9)
     a0 = (p*T - 2) / (2 + p*T)
     b0 = 2 / (2 + p*T)
     b1 = - 2 / (2 + p*T)
